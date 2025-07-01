@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meu Site de Estatísticas</title>
-    <!-- Adicionando um pouco de estilo para uma aparência mais limpa -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -19,10 +18,11 @@
             align-items: center;
             height: 100vh;
             margin: 0;
+            padding: 15px;
         }
         .container {
             background-color: white;
-            padding: 40px;
+            padding: 30px 40px;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             max-width: 500px;
@@ -34,11 +34,12 @@
             margin-top: 20px;
             font-size: 1.1em;
             color: #555;
+            min-height: 50px; /* Garante espaço para a mensagem */
         }
         #country-info {
             font-size: 1.3em;
             font-weight: bold;
-            color: #0056b3; /* Um azul mais forte */
+            color: #0056b3;
             display: block;
             margin-top: 10px;
         }
@@ -48,44 +49,86 @@
     <div class="container">
         <h1>Bem-vindo(a)!</h1>
         <p>Analisando sua conexão para fins de estatística...</p>
-        <p id="result">Detectando seu país...</p>
+        <div id="result">Detectando seu país...</div>
     </div>
 
     <script>
-        // Função assíncrona para buscar os dados de geolocalização
-        async function detectAndLogCountry() {
-            const resultElement = document.getElementById('result');
-
+        // --- MÉTODO 1: TENTATIVA MODERNA (FETCH) ---
+        // Tenta usar a API fetch, que é o padrão atual.
+        // Pode ser bloqueada por algumas configurações de segurança.
+        async function fetchWithModernMethod() {
+            console.log("Tentativa 1: Usando o método moderno (fetch)...");
             try {
-                // 1. Usando uma API diferente e confiável (freeipapi.com)
-                // Esta API tem uma boa política de CORS, funcionando bem em arquivos locais.
-                const response = await fetch('https://freeipapi.com/api/json/');
-
-                // 2. Verificando se a resposta da rede foi bem-sucedida
+                // Usando a API ipinfo.io, uma das mais robustas.
+                const response = await fetch('https://ipinfo.io/json?token=a133b3a335f634');
                 if (!response.ok) {
-                    // Se a resposta não for 'ok' (ex: erro 404, 500), lançamos um erro.
-                    throw new Error(`Erro na rede: Status ${response.status}`);
+                    throw new Error(`Resposta da rede não foi OK: ${response.statusText}`);
                 }
                 const data = await response.json();
-
-                // 3. Extraindo o nome do país da resposta
-                const country = data.countryName || 'País Desconhecido';
-
-                // 4. Exibindo o resultado de forma mais clara na página
-                resultElement.innerHTML = `Obrigado por visitar! Detectamos que seu acesso é de: <span id="country-info">${country}</span>`;
-
-                // 5. Registrando no console para depuração (o passo antes de salvar em um BD)
-                console.log(`País detectado com sucesso: ${country}.`);
-
+                displayCountry(data.country); // Se funcionar, exibe o país
             } catch (error) {
-                // 6. Se qualquer passo no bloco 'try' falhar, o 'catch' é executado
-                console.error('Ocorreu um erro ao detectar o país:', error);
-                resultElement.textContent = 'Desculpe, não foi possível detectar sua localização no momento.';
+                console.warn("Método moderno (fetch) falhou:", error.message);
+                console.log("Tentativa 2: Usando o método de fallback (JSONP)...");
+                // Se o fetch falhar, chama o método de fallback.
+                fetchWithFallbackMethod();
             }
         }
 
-        // Executando a função quando a página termina de carregar
-        window.onload = detectAndLogCountry;
+        // --- MÉTODO 2: TENTATIVA DE FALLBACK (JSONP) ---
+        // Este método contorna muitas restrições de segurança (CORS).
+        // Ele cria uma tag <script> dinamicamente para buscar os dados.
+        function fetchWithFallbackMethod() {
+            // 1. Cria um elemento <script> na memória.
+            const script = document.createElement('script');
+            
+            // 2. Define o endereço da API. O `?callback=displayCountryFromFallback`
+            // diz à API para "envelopar" a resposta em uma função com esse nome.
+            script.src = 'https://ipinfo.io?callback=displayCountryFromFallback';
+
+            // 3. Define uma função para ser executada em caso de erro no carregamento do script.
+            script.onerror = function() {
+                console.error("Método de fallback (JSONP) também falhou.");
+                displayError();
+            };
+
+            // 4. Adiciona o script ao final da página. O navegador irá carregar e executar o script.
+            document.body.appendChild(script);
+        }
+
+        // --- FUNÇÕES DE CALLBACK E EXIBIÇÃO ---
+
+        // Esta função é chamada pela API do método de fallback (JSONP).
+        // Ela precisa estar no escopo global para que a API possa encontrá-la.
+        function displayCountryFromFallback(data) {
+            const countryCode = data ? data.country : null;
+            displayCountry(countryCode);
+        }
+
+        // Função central para exibir o país na tela.
+        function displayCountry(countryCode) {
+            const resultElement = document.getElementById('result');
+            if (countryCode) {
+                // Mapeia o código do país (ex: "BR") para o nome completo em Português.
+                const regionNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' });
+                const countryName = regionNames.of(countryCode);
+                
+                resultElement.innerHTML = `Obrigado por visitar! Detectamos que seu acesso é de: <span id="country-info">${countryName}</span>`;
+                console.log(`Sucesso! País detectado: ${countryName} (${countryCode})`);
+            } else {
+                console.error("O código do país não foi recebido.");
+                displayError();
+            }
+        }
+        
+        // Função para mostrar uma mensagem de erro final.
+        function displayError() {
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = 'Desculpe, não foi possível detectar sua localização no momento.';
+        }
+
+        // --- INÍCIO DA EXECUÇÃO ---
+        // Quando a página carrega, inicia a primeira tentativa.
+        window.onload = fetchWithModernMethod;
     </script>
 </body>
 </html>
