@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Site de Estatísticas</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        #country-info { font-size: 1.2em; font-weight: bold; color: #007BFF; }
+    </style>
+</head>
+<body>
+    <h1>Bem-vindo(a) à minha página!</h1>
+    <p>Analisando sua conexão para fins de estatística...</p>
+    <p id="result"></p>
+
+    <script>
+        // Esta função será executada assim que a página carregar
+        window.onload = async function() {
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = 'Detectando seu país...';
+
+            try {
+                // 1. Fazemos uma "chamada" para uma API gratuita que nos diz a localização baseada no IP
+                const response = await fetch('https://ip-api.com/json');
+                if (!response.ok) {
+                    throw new Error('A resposta da rede não foi boa.');
+                }
+                const data = await response.json();
+
+                // 2. Pegamos o país dos dados recebidos
+                const country = data.country || 'País Desconhecido';
+
+                // 3. Exibimos o país na tela
+                resultElement.innerHTML = `Obrigado por visitar! Detectamos que seu acesso é do país: <span id="country-info">${country}</span>`;
+
+                // --- PONTO CHAVE ---
+                // É AQUI que o código para SALVAR a informação entraria.
+                // Como não podemos escrever em um arquivo .txt, nós enviaríamos para um backend.
+                // Por enquanto, vamos apenas registrar no console do navegador.
+                console.log(`País detectado: ${country}. (Isso seria enviado para um banco de dados)`);
+
+            } catch (error) {
+                console.error('Erro ao detectar o país:', error);
+                resultElement.textContent = 'Não foi possível detectar a sua localização.';
+            }
+        };
+    </script>
+</body>
+</html>
