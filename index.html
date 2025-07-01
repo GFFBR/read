@@ -16,119 +16,145 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            padding: 15px;
+            padding: 20px;
         }
         .container {
             background-color: white;
             padding: 30px 40px;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
+            max-width: 550px;
+            width: 100%;
         }
         h1 {
             color: #1a1a1a;
         }
-        #result {
-            margin-top: 20px;
+        .info-section {
+            border-top: 1px solid #eee;
+            margin-top: 25px;
+            padding-top: 20px;
+            text-align: left;
+        }
+        .info-section h2 {
+            font-size: 1.2em;
+            margin-top: 0;
+            color: #333;
+        }
+        .info-item {
             font-size: 1.1em;
             color: #555;
-            min-height: 50px; /* Garante espaço para a mensagem */
         }
-        #country-info {
-            font-size: 1.3em;
+        .info-value {
             font-weight: bold;
             color: #0056b3;
-            display: block;
-            margin-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Bem-vindo(a)!</h1>
-        <p>Analisando sua conexão para fins de estatística...</p>
-        <div id="result">Detectando seu país...</div>
+        <p>Coletando dados de estatística do seu acesso...</p>
+
+        <!-- Seção para Informações de Localização -->
+        <div class="info-section">
+            <h2><img src="https://placehold.co/24x24/transparent/transparent?text=📍" style="vertical-align: middle; margin-right: 8px;" alt="Ícone de localização">Localização (via IP)</h2>
+            <p id="country-info" class="info-item">País: <span class="info-value">Detectando...</span></p>
+        </div>
+
+        <!-- Seção para Informações de Idioma -->
+        <div class="info-section">
+            <h2><img src="https://placehold.co/24x24/transparent/transparent?text=🌐" style="vertical-align: middle; margin-right: 8px;" alt="Ícone de globo">Idioma do Navegador</h2>
+            <p class="info-item">Nome: <span id="lang-name" class="info-value">Detectando...</span></p>
+            <p class="info-item">Código: <span id="lang-code" class="info-value">Detectando...</span></p>
+        </div>
     </div>
 
     <script>
-        // --- MÉTODO 1: TENTATIVA MODERNA (FETCH) ---
-        // Tenta usar a API fetch, que é o padrão atual.
-        // Pode ser bloqueada por algumas configurações de segurança.
+        // --- FUNÇÃO PARA DETECTAR O IDIOMA ---
+        // Esta função é rápida e não depende de APIs externas.
+        function detectAndDisplayLanguage() {
+            try {
+                // 1. 'navigator.language' é a propriedade padrão que nos dá o código do idioma (ex: "pt-BR").
+                const langCode = navigator.language || navigator.userLanguage; // userLanguage é para IE antigo.
+
+                if (langCode) {
+                    // 2. Usamos a API Intl.DisplayNames para obter o nome completo do idioma no próprio idioma.
+                    // Ex: se langCode for "en-US", ele retornará "English (United States)".
+                    // Passamos [langCode] para que ele mostre o nome no idioma nativo (ex: "Deutsch" para "de-DE").
+                    const langNameDisplay = new Intl.DisplayNames([langCode], { type: 'language' });
+                    let langName = langNameDisplay.of(langCode);
+                    
+                    // Capitaliza a primeira letra para uma exibição mais bonita.
+                    langName = langName.charAt(0).toUpperCase() + langName.slice(1);
+
+                    document.getElementById('lang-name').textContent = langName;
+                    document.getElementById('lang-code').textContent = langCode;
+                    console.log(`Idioma detectado: ${langName} (${langCode})`);
+                } else {
+                    throw new Error("navigator.language não está disponível.");
+                }
+            } catch (error) {
+                console.error("Erro ao detectar idioma:", error);
+                document.getElementById('lang-name').textContent = "Não detectado";
+                document.getElementById('lang-code').textContent = "N/A";
+            }
+        }
+
+        // --- FUNÇÕES PARA DETECTAR O PAÍS (Método robusto com fallback) ---
         async function fetchWithModernMethod() {
             console.log("Tentativa 1: Usando o método moderno (fetch)...");
             try {
-                // Usando a API ipinfo.io, uma das mais robustas.
                 const response = await fetch('https://ipinfo.io/json?token=a133b3a335f634');
-                if (!response.ok) {
-                    throw new Error(`Resposta da rede não foi OK: ${response.statusText}`);
-                }
+                if (!response.ok) throw new Error(`Resposta da rede não foi OK: ${response.statusText}`);
                 const data = await response.json();
-                displayCountry(data.country); // Se funcionar, exibe o país
+                displayCountry(data.country);
             } catch (error) {
                 console.warn("Método moderno (fetch) falhou:", error.message);
                 console.log("Tentativa 2: Usando o método de fallback (JSONP)...");
-                // Se o fetch falhar, chama o método de fallback.
                 fetchWithFallbackMethod();
             }
         }
 
-        // --- MÉTODO 2: TENTATIVA DE FALLBACK (JSONP) ---
-        // Este método contorna muitas restrições de segurança (CORS).
-        // Ele cria uma tag <script> dinamicamente para buscar os dados.
         function fetchWithFallbackMethod() {
-            // 1. Cria um elemento <script> na memória.
             const script = document.createElement('script');
-            
-            // 2. Define o endereço da API. O `?callback=displayCountryFromFallback`
-            // diz à API para "envelopar" a resposta em uma função com esse nome.
             script.src = 'https://ipinfo.io?callback=displayCountryFromFallback';
-
-            // 3. Define uma função para ser executada em caso de erro no carregamento do script.
             script.onerror = function() {
                 console.error("Método de fallback (JSONP) também falhou.");
-                displayError();
+                displayCountryError();
             };
-
-            // 4. Adiciona o script ao final da página. O navegador irá carregar e executar o script.
             document.body.appendChild(script);
         }
 
-        // --- FUNÇÕES DE CALLBACK E EXIBIÇÃO ---
-
-        // Esta função é chamada pela API do método de fallback (JSONP).
-        // Ela precisa estar no escopo global para que a API possa encontrá-la.
         function displayCountryFromFallback(data) {
-            const countryCode = data ? data.country : null;
-            displayCountry(countryCode);
+            displayCountry(data ? data.country : null);
         }
 
-        // Função central para exibir o país na tela.
         function displayCountry(countryCode) {
-            const resultElement = document.getElementById('result');
+            const countryElement = document.querySelector('#country-info .info-value');
             if (countryCode) {
-                // Mapeia o código do país (ex: "BR") para o nome completo em Português.
                 const regionNames = new Intl.DisplayNames(['pt-BR'], { type: 'region' });
                 const countryName = regionNames.of(countryCode);
-                
-                resultElement.innerHTML = `Obrigado por visitar! Detectamos que seu acesso é de: <span id="country-info">${countryName}</span>`;
-                console.log(`Sucesso! País detectado: ${countryName} (${countryCode})`);
+                countryElement.textContent = countryName;
+                console.log(`País detectado com sucesso: ${countryName} (${countryCode})`);
             } else {
                 console.error("O código do país não foi recebido.");
-                displayError();
+                displayCountryError();
             }
         }
         
-        // Função para mostrar uma mensagem de erro final.
-        function displayError() {
-            const resultElement = document.getElementById('result');
-            resultElement.textContent = 'Desculpe, não foi possível detectar sua localização no momento.';
+        function displayCountryError() {
+            const countryElement = document.querySelector('#country-info .info-value');
+            countryElement.textContent = 'Não foi possível detectar';
         }
 
         // --- INÍCIO DA EXECUÇÃO ---
-        // Quando a página carrega, inicia a primeira tentativa.
-        window.onload = fetchWithModernMethod;
+        window.onload = function() {
+            // Executa ambas as detecções quando a página carrega.
+            detectAndDisplayLanguage();
+            fetchWithModernMethod();
+        };
     </script>
 </body>
 </html>
